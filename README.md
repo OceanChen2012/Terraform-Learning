@@ -1,6 +1,11 @@
 # Terraform-Learning
 ![图片](https://user-images.githubusercontent.com/2436384/157817973-a37ecd2d-9f00-4b25-8c39-bf8394d0cd27.png)
 
+![图片](https://user-images.githubusercontent.com/2436384/157819952-2d7a2593-fd83-4a0d-abcd-35ce2b27e0ec.png)
+
+![图片](https://user-images.githubusercontent.com/2436384/157819997-92358c38-3670-4be8-9c99-3ef320fe9251.png)
+
+
 多云基础设施编排工具Terraform,重点解决公有云厂商的软硬件（基础）资源构建的问题。
 公司最近用上了terraform, 新建服务, 更改配置, 增加SG都要通过他进行.
 
@@ -61,4 +66,6 @@ resource "ucloud_vpc" "vpc" {
 
 
 
-更多资料参考：https://lonegunmanb.github.io/introduction-terraform/
+更多资料参考：
+http://registry.terraform.io/browse/providers
+https://lonegunmanb.github.io/introduction-terraform/
