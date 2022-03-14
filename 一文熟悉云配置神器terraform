@@ -1,0 +1,409 @@
+Terraform 简介
+
+Terraform is a tool for building, changing, and versioning infrastructure safely and efficiently. Terraform can manage existing and popular service providers as well as custom in-house solutions.
+
+Configuration files describe to Terraform the components needed to run a single application or your entire datacenter. Terraform generates an execution plan describing what it will do to reach the desired state, and then executes it to build the described infrastructure. As the configuration changes, Terraform is able to determine what changed and create incremental execution plans which can be applied.
+
+The infrastructure Terraform can manage includes low-level components such as compute instances, storage, and networking, as well as high-level components such as DNS entries, SaaS features, etc.
+
+开发公司：HashiCorp 入门手册：https://www.terraform.io/intro/index.html 官网: https://www.terraform.io/ Github：https://github.com/hashicorp/terraform 功能：terraform 用于各类基础设施资源初始化，支持多种云平台，支持第三方服务对接 Terraform 语言：HCL(HashiCorp Configuration Language) Advantages of Infrastructure as Code
+
+•Easily Repeatable
+•Easily Readable
+•Operational certainty with “terraform plan”
+•Standardized environment builds
+•Quickly provisioned development environments
+•Disaster Recovery
+
+关于 Terraform 开源版你需要知道的缺点，官方的介绍视频主要通过引入 Terraform Enterprise 企业版来解决以下问题
+
+•状态管理非常原始
+•缺乏状态可视化
+•版本控制困难，需要借助github等第三方工具
+•语言内的语法使用困难，比如循环，变量定义
+
+Introduction to Infrastructure as Code with Terraform[1]
+
+
+Terraform 关键概念
+
+
+Terraform 管理的是云资源
+
+基础设施和服务统称为资源，如私有网络、子网、物理机、虚拟机、镜像、专线、NAT 网关等等都可以称之为资源，也是开发和运维人员经常要打交道要维护的东西。
+
+资源分为两种 resource 和 data
+
+resource 这类资源一般是抽象的真正的云服务资源，支持增删改，如私有网络、NAT 网关、虚拟机实例
+
+resource " 资源类名 & quot; " 映射到本地的唯一资源名 & quot; {
+  参数 = 值
+  ...
+}
+data 这类资源一般是固定的一些可读资源，如可用区列表、镜像列表。大部分情况下，resource 资源也会封装一个 data source 方法，用于资源查询
+
+data " 资源类名 & quot; " 映射到本地的唯一资源名 & quot; {
+  参数 = 值
+  ...
+}
+在使用 Terraform 的过程中，通常接触到很多名词，如 configuration，provider，resource，datasource，state，backend，provisioner 等，本文将一一跟大家介绍这些概念。
+
+Configuration：基础设施的定义和描述
+
+“基础设施即代码（Infrastructure as Code）”，这里的 Code 就是对基础设施资源的代码定义和描述，也就是通过代码表达我们想要管理的资源。
+
+# VPC 资源
+resource "alicloud_vpc" "vpc" {
+        name          = "tf_vpc"
+        cidr_block  = "172.16.0.0/16"
+}
+# VSwitch 资源
+resource "alicloud_vswitch" "vswitch" {
+        vpc_id            = alicloud_vpc.vpc.id
+        cidr_block        = "172.16.1.0/24"
+        availability_zone = "cn-beijing-a"
+}
+对所有资源的代码描述都需要定义在一个以 tf 结尾的文件用于 Terraform 加载和解析，这个文件我们称之为 “Terraform 模板” 或者“Configuration”。
+
+Provider：基础设施管理组件
+
+Terraform 通常用于对云上基础设施，如虚拟机，网络资源，容器资源，存储资源等的创建，更新，查看，删除等管理动作，也可以实现对物理机的管理，如安装软件，部署应用等
+
+【Provider】 是一个与 Open API 直接交互的后端驱动，Terraform 就是通过 Provider 来完成对基础设施资源的管理的。不同的基础设施提供商都需要提供一个 Provider 来实现对自家基础设施的统一管理。目前 Terraform 目前支持超过 160 多种的 providers，大多数云平台的 Provider 插件均已经实现了，AWS对应的 Provider 为 aws 。
+
+在操作环境中，Terraform 和 Provider 是两个独立存在的 package，当运行 Terraform 时，Terraform 会根据用户模板中指定的 provider 或者 resource／datasource 的标志自动的下载模板所用到的所有 provider，并将其放在执行目录下的一个隐藏目录 .terraform 下。
+
+provider "aws" {
+    profile = "default"
+    access_key = var.access_key
+    secret_key = var.secret_key
+    region     = var.region
+}
+模板中显示指定了一个AWS的 Provider，指定了需要管理资源的 region，指定了当前这个模板的标识。通常 Provider 都包含两个主要元素 resource 和 data source。
+
+Resource：基础设施资源和服务的管理
+
+在 Terraform 中，一个具体的资源或者服务称之为一个 resource，比如一台 ECS 实例，一个 VPC 网络，一个 SLB 实例。每个特定的 resource 包含了若干可用于描述对应资源或者服务的属性字段，通过这些字段来定义一个完整的资源或者服务，比如实例的名称（name），实例的规格（instance_type），VPC 或者 VSwitch 的网段（cidr_block）等。定义一个 Resource 的语法非常简单，通过 resource 关键字声明，如下
+
+# 定义一个 ECS 实例
+resource "alicloud_instance" "default" {
+  image_id        = "ubuntu_16_04_64_20G_alibase_20190620.vhd"
+  instance_type   = "ecs.sn1ne.large"
+  instance_name   = "my-first-vm"
+  system_disk_category = "cloud_ssd"
+  ...
+}
+•其中 alicloud_instance 为 资源类型（Resource Type)，定义这个资源的类型，告诉 Terraform 这个 Resource 是阿里云的 ECS 实例还是阿里云的 VPC。
+•default 为 资源名称(Resource Name)，资源名称在同一个模块中必须唯一，主要用于供其他资源引用该资源。
+•大括号里面的 block 块为 配置参数(Configuration Arguments)，定义资源的属性，比如 ECS 实例的规格、镜像、名称等。显然这个 Terraform 模板的功能为在阿里云上创建一个 ECS 实例，镜像 ID 为 ubuntu_16_04_64_20G_alibase_20190620.vhd ，规格为 ecs.sn1ne.large ，自定义了实例名称和系统盘的类型。
+
+除此之外，在 Terraform 中，一个资源与另一个资源的关系也定义为一个资源，如一块云盘与一台 ECS 实例的挂载，一个弹性 IP（EIP）与一台 ECS 或者 SLB 实例的绑定关系。这样定义的好处是，一方面资源架构非常清晰，另一方面，当模板中有若干个 EIP 需要与若干台 ECS 实例绑定时，只需要通过 Terraform 的 count 功能就可以在无需编写大量重复代码的前提下实现绑定功能。
+
+resource "alicloud_instance" "default" {
+  count = 5
+  ...
+}
+resource "alicloud_eip" "default" {
+    count = 5
+  ...
+}
+resource "alicloud_eip_association" "default" {
+  count = 5
+  instance_id = alicloud_instance.default[count.index].id
+  allocation_id = alicloud_eip.default[count.index].id
+}
+显然这个 Terraform 模板的功能为在阿里云上创建 5 个 ECS 实例和 5 个弹性 IP，并将它们一一绑定。
+
+Data Source：基础设施资源和服务的查询
+
+对资源的查询是运维人员或者系统最常使用的操作，比如，查看某个 region 下有哪些可用区，某个可用区下有哪些实例规格，每个 region 下有哪些镜像，当前账号下有多少机器等，通过对资源及其资源属性的查询可以帮助和引导开发者进行下一步的操作。
+
+除此之外，在编写 Terraform 模板时，Resource 使用的参数有些是固定的静态变量，但有些情况下可能参数变量不确定或者参数可能随时变化。比如我们创建 ECS 实例时，通常需要指定我们自己的镜像 ID 和实例规格，但我们的模板可能随时更新，如果在代码中指定 ImageID 和 Instance，则一旦我们更新镜像模板就需要重新修改代码。在 Terraform 中，Data Source 提供的就是一个查询资源的功能，每个 data source 实现对一个资源的动态查询，Data Souce 的结果可以认为是动态变量，只有在运行时才能知道变量的值。
+
+Data Sources 通过 data 关键字声明，如下：
+
+// Images data source for image_id
+data "alicloud_images" "default" {
+  most_recent = true
+  owners      = "system"
+  name_regex  = "^ubuntu_18.*_64"
+}
+
+data "alicloud_zones" "default" {
+  available_resource_creation = "VSwitch"
+  enable_details              = true
+}
+
+// Instance_types data source for instance_type
+data "alicloud_instance_types" "default" {
+  availability_zone = data.alicloud_zones.default.zones.0.id
+  cpu_core_count    = 2
+  memory_size       = 4
+}
+
+resource "alicloud_instance" "web" {
+  image_id        = data.alicloud_images.default.images[0].id
+  instance_type   = data.alicloud_instance_types.default.instance_types[0].id
+  instance_name   = "my-first-vm"
+  system_disk_category = "cloud_ssd"
+  ...
+}
+如上例子中的 ECS Instance 没有指定镜像 ImageID 和实例规格，而是通过 data 引用，Terraform 运行时将首先根据镜像名称前缀选择系统镜像，如果同时有多个镜像满足条件，则选择最新的镜像。实例规格也是类似，在某个可用区下选择 2 核 4G 的实例规格进行返回。
+
+State：保存资源关系及其属性文件的数据库
+
+Terraform 创建和管理的所有资源都会保存到自己的数据库上，这个数据库不是通常意义上的数据库（MySQL，Redis 等），而是一个文件名为 terraform.tfstate 的文件，在 Terraform 中称之为 state ，默认存放在执行 Terraform 命令的本地目录下。这个 state 文件非常重要，如果该文件损坏，Terraform 将认为已创建的资源被破坏或者需要重建（实际的云资源通常不会受到影响），因为在执行 Terraform 命令，Terraform 将会利用该文件与当前目录下的模板做 Diff 比较，如果出现不一致，Terraform 将按照模板中的定义重新创建或者修改已有资源，直到没有 Diff，因此可以认为 Terraform 是一个有状态服务。
+
+当涉及多人协作时不仅需要拷贝模板，还需要拷贝 state 文件，这无形中增加了维护成本。幸运的是，目前 Terraform 支持把 state 文件放到远端的存储服务 OSS 上或者 consul 上，来实现 state 文件和模板代码的分离。具体细节可参考 官方文档 Remote State 或者关注后续文章的详细介绍。
+
+Backend：存放 State 文件的载体
+
+正如上节提到，Terraform 在创建完资源后，会将资源的属性存放在一个 state 文件中，这个文件可以存放在本地也可以存放在远端。存放 state 文件的载体就是 Backend 。Backend 分为本地（local）和远端（remote）两类，默认为本地。远端的类型也非常多，目前官方网站提供的有 13 种，并且阿里云的 OSS就位列其中。
+
+使用远端的 Backend，既可以降低多人协作时对 state 的维护成本，而且可以将一些敏感的数据存放在远端，保证了数据的安全性。
+
+Provisioner：在机器上执行操作的组件
+
+Provisioner 通常用来在本地机器或者登陆远程主机执行相关的操作，如 local-exec provisioner 用来执行本地的命令， chef provisioner 用来在远程机器安装，配置和执行 chef client， remote-exec provisioner 用来登录远程主机并在其上执行命令。
+
+Provisioner 通常跟 Provider 一起配合使用，provider 用来创建和管理资源，provisioner 在创建好的机器上执行各种操作。
+
+Terraform 常用命令详解
+
+terraform plan：资源的预览
+
+plan 命令用于对模板中所定义资源的预览，主要用于以下几个场景：
+
+•预览当前模板中定义的资源是否符合管理预期，和 Markdown 的预览功能类似
+•如果当前模板已经存在对应的 state 文件，那么 plan 命令将会展示模板定义与 state 文件内容的 diff 结果，如果有变更，将会展示结果并在下方显示出来
+•对 DataSource 而言，执行 plan 命令，即可直接获取并输出所要查询的资源及其属性
+
+terraform apply：资源的新建和变更
+
+
+apply 命令用于实际资源的新建和变更操作，为了安全起见，在命令运行过程中增加了人工交互的过程，即需要手动确认是否继续，当然也可以通过 --auto-approve 参数来跳过人工确认的过程。 apply 命令适用于以下几种场景：
+
+•创建新的资源
+•通过修改模板参数来修改资源的属性
+•如果从当前模板中删除某个资源的定义， apply 命令会将该资源彻底删除。可以理解为“资源的移除也是一种变更”
+
+terraform show：资源的展示
+
+
+show 命令用于展示当前 state 中所有被管理的资源及其所有属性值。
+
+terraform destroy：资源的释放
+
+destroy 命令用于对资源的释放操作，为了安全起见，在命令执行过程中，也增加了人工交互的过程，如果想要跳过手动确认操作，可以通过 --force 参数来跳过。 terraform destroy 默认会释放当前模板中定义的所有资源，如果只想释放其中某个特定的资源，可以通过参数 -target=<资源类型>.<资源名称> 来指定。
+
+terraform import：资源的导入
+
+import 命令用于将存量的云资源导入到 terraform state 中，进而加入到 Terraform 的管理体系中，适用的场景包含但不限于以下几种：
+
+•从来没有使用 Terraform 管控过任何资源，当前所有的存量云资源都是通过控制台，阿里云 CLI，ROS 或者直接调用 API 创建和管理的，现在想要切换为 Terraform 管理
+•在不影响资源正常使用的前提下，重构资源模板中的资源定义
+•阿里云的 Provider 进行了兼容性升级，新版 Provider 对原有模板中所定义的资源支持了更多的参数，需要把最新的参数同步进来
+
+terraform taint: 标记资源为“被污染”
+
+
+taint 命令用于把某个资源标记为 “被污染” 状态，当再次执行 apply 命令时，这个被污染的资源将会被先释放，然后再创建一个新的，相当于对这个特定资源做了先删除后新建的操作。命令的详细格式为： terraform taint <资源类型>.<资源名称> ，如：
+
+$ terraform taint alicloud_vswitch.this
+Resource instance alicloud_vswitch.this has been marked as tainted.
+
+terraform untaint：取消 “被污染” 标记 untaint 命令是 taint 的逆向操作，用于取消 “被污染” 标记，使其恢复到正常的状态。命令的详细格式和 taint 类似为： terraform untaint <资源类型>.<资源名称> ，如：
+
+$ terraform untaint alicloud_vswitch.this
+Resource instance alicloud_vswitch.this has been successfully untainted.
+terraform output：打印出参及其值 如果在模板中显示定义了 output 参数，那么这个 output 的值将在 apply 命令之后展示，但 plan 命令并不会展示，如果想随时随地快速查看 output 的值，可以直接运行命令 terraform output :
+
+$ terraform output
+vswitchId = vsw-gw8gl31wz********
+
+Terraform 资源管理常用命令
+
+Terraform 对资源状态的管理，实际上是对 State 文件中数据的管理。State 文件保存了当前 Terraform 管理的所有资源及其属性，内容都是由 Terraform 自动存储的，为了保证数据的完整性，不建议手动修改 State 内容。
+
+对 State 数据的操作可以通过 terraform state 命令来完成。
+
+terraform state list：列出当前 state 中的所有资源
+
+state list 按照 <资源类型>.<资源名称> 的格式列出当前 state 中存在的所有资源（包括 datasource），如：
+
+$ terraform state list
+data.alicloud_slbs.default
+alicloud_vpc.default
+alicloud_vswitch.this
+terraform state show：展示某一个资源的属性 state show 命令按照 Key-Value 的格式展示出特定资源的所有属性及其值，命令的完整格式为 terraform state show <资源类型>.<资源名称> ，如：
+
+$ terraform state show alicloud_vswitch.this
+# alicloud_vswitch.this:
+resource "alicloud_vswitch" "this" {
+    availability_zone = "eu-central-1a"
+    cidr_block        = "172.16.0.0/24"
+    id                = "vsw-gw8gl31wz******"
+    vpc_id            = "vpc-gw8calnzt*******"
+}
+terraform state pull：获取当前 state 内容并展示 state pull 命令用于原样展示当前 state 文件数据，类似与 Shell 下的 cat 命令，如`
+
+$ terraform state pull
+{
+  "version": 4,
+  "terraform_version": "0.12.8",
+  "serial": 615,
+  "lineage": "39aeeee2-b3bd-8130-c897-2cb8595cf8ec",
+  "outputs": {
+    ***
+    }
+  },
+  "resources": [
+    {
+      "mode": "data",
+      "type": "alicloud_slbs",
+      "name": "default",
+      "provider": "provider.alicloud",
+      ***
+    },
+    {
+      "mode": "managed",
+      "type": "alicloud_vpc",
+      "name": "default",
+      "provider": "provider.alicloud",
+      ***
+    }
+  ]
+}
+terraform state rm：移除特定的资源
+
+state rm 命令用于将 state 中的某个资源移除，但是实际上并不会真正删除这个资源，命令格式为： terraform state rm <资源类型>.<资源名称> ，如：
+
+terraform state rm alicloud_vswitch.this
+Removed alicloud_vswitch.this
+Successfully removed 1 resource instance(s).
+
+移除后，如果模板内容不变并且再次执行 apply 命令，将会新增一个同样的资源。移除后的资源可以再次通过 import 命令再次加入。
+
+terraform state mv：变更特定资源的存放地址
+
+如果想调整某个资源所在的 state 文件，可以通过 state mv 命令来完成，类似于 Shell 下的 mv 命令，这个命令的使用有多种选项，可以通过命令 terraform state mv --help 来详细了解。本文只介绍最常用的一种： terraform state mv --state=./terraform.tfstate --state-out=<target path>/terraform-target.tfstate <资源类型>.<资源名称 A> <资源类型>.<资源名称 B> ，如：
+
+$ terraform state mv -state-out=../tf.tfstate alicloud_vswitch.this alicloud_vswitch.default
+Move "alicloud_vswitch.this" to "alicloud_vswitch.default"
+Successfully moved 1 object(s).
+如上命令省略了默认的 --state=./terraform.tfstate 选项，命令最终的结果是将当前 State 中的 VSwitch 资源移动到了上层目录下名为 tf.tfstate 的 State 中，并且将 VSwitch 的资源名称由 “this” 改为了 “default”
+
+terraform refresh：刷新当前 state refresh 命令可以用来刷新当前 State 的内容，即再次调用 API 并拉取最新的数据写入到 state 文件中。
+
+Terraform 其他常用命令
+
+除了资源和 state 的管理命令外，还有一些常用的应用在模板，provider 等多种场景下的命令。
+
+terraform init：初始化加载模块 init 用来初始化加载所需的模块，包括 Provider，Provisioner，Module 等。
+
+terraform graph：输出当前模板定义的资源关系图 每个模板定义的资源之间都存在不同程度的关系，如果想看资源关系大图，可以使用命令 terraform graph :
+
+$ terraform graph
+digraph {
+        compound = "true"
+        newrank = "true"
+        subgraph "root" {
+                "[root] alicloud_vpc.default" [label = "alicloud_vpc.default", shape = "box"]
+                "[root] alicloud_vswitch.this" [label = "alicloud_vswitch.this", shape = "box"]
+                ******
+                "[root] output.vswitchId" -> "[root] alicloud_vswitch.this"
+                "[root] provider.alicloud (close)" -> "[root] alicloud_vswitch.this"
+                                ******
+                "[root] root" -> "[root] provider.alicloud (close)"
+        }
+}
+该命令的结果还可以通过命令 terraform graph | dot -Tsvg > graph.svg 直接导出为一张图片（需要提前安装 graphviz： brew install graphviz ）
+
+terraform validate：验证模板语法是否正确
+
+Terraform 模板的编写需要遵循其自身定义的一套简单的语法规范，编写完成后，如果想要检查模板是否存在语法错误或者在运行 plan 和 apply 命令的时候报语法错误，可以通过执行命令 terraform validate 来检查和定位错误出现的详细位置和原因。
+
+Terraform 使用技巧
+
+避免秘钥直接写入 tf 文件中
+
+将秘钥直接填入到. tf 文件中是十分不安全的，在多用户共同管理资源时，不建议把云 API 的秘钥直接写到源代码里，以免一不小心更新到公开的版本中，造成安全风险。
+
+涉及 Provider API 中的如数据库用户名密码也同样建议以变量的形式加载，避免明文写入到文件中
+
+善用 variable 环境变量
+
+variable 是 Terraform 重要的配置文件类型之一，通过对变量的集中管理，用户可以在资源文件中直接引用变量名进行赋值
+
+创建 variable.tf 文件，配置可用区参数的默认值 ap-guangzhou-1
+
+善用 output 做 debug
+
+terraform output 指令用于从状态文件中提取输出变量的值。
+
+标准语法：terraform output [options] [NAME]
+
+•options 用来填写 output 的 flags
+•NAME 用来指定要输出的变量的值，默认为根模块的所有输出 配置 output.tf 文件，设置要输出的内容，案例中设置查看服务器的 id 和 availability_zone 两个参数
+
+# output.tf
+
+output "cvm_az" {
+  value = "${tencentcloud_instance.cvm.availability_zone}"
+}
+
+output "cvm_id" {
+  value = "${tencentcloud_instance.cvm.id}"
+}
+执行 terraform apply，output 的内容自动显示出来，也可以执行 terraform output 再次查看全部输出内容
+
+通过 terraform output cvm_id 单独查看服务器 id
+
+有关 output 指令的更多信息，请点击这里[4]
+
+terrafrom 目录布局
+
+Terraform 运行时会读取工作目录中所有的 *.tf, *.tfvars 文件，所以我们不必把所有的东西都写在单个文件中去，应按职责分列在不同的文件中，例如
+
+provider.tf             ### provider 配置
+
+terraform.tfvars        ### 配置 provider 要用到的变量
+
+varable.tf              ### 通用变量
+
+resource.tf             ### 资源定义
+
+data.tf                 ### 包文件定义
+
+output.tf               ### 输出
+其它 terraform 指令
+
+# providers 有新版本时可以使用以下指令更新脚本，获取最新的应用
+terraform init -upgrade
+
+# 限制并发操作的数量，默认是 10
+terraform apply -parallelism=5
+Terraform 的缺点
+
+•状态管理还处在原始社会
+
+terraform 作为开源软件，既有开源软件生态丰富代码相对难以作恶的优势，又有开源软件只重视核心功能不注重使用体验的劣势。状态管理是 terraform 用户体验非常差的一环，由于没有提供相应的功能，客户只能自己在开源社区里找解决方案。目前 AWS 上常用的方案是 S3 存储状态，DynamoDB 用来加锁。如果多个人部署同一个 stack，就简单粗暴去 DynamoDB 拿锁排队。这个方案在几十人的团队里还凑合，再大就会有很多麻烦。另外，状态的版本控制基本上没有，或者只能通过状态使用的存储引擎做版本管理（比如 S3），很难有效对比多个状态之间的差异。
+
+•缺乏可视化的手段
+
+状态的展示，部署的过程其实都可能做很多可视化的事情，让整体体验更好一些，减少 devOps 犯错。然而，terraform 并没有做这方面的支持。
+
+•代码表现力一般
+
+实际使用的时候，我们总是绕不开循环，条件判断，以及对字符串做处理等各种工作，变量的定义重复使用，而 terraform 在这一块的表现力太弱，使得代码写起来非常冗长，很多时候不得不复制粘贴。
+
+•terraform cloud 才刚刚起步
+
+头两个问题也许在 terraform 的企业版中得到解决，但我和我的公司都没有用过，具体怎么样不得而知。也许是迫于接下来要讲的 pulumi 在市场上的压力吧，Hashicorp 在 2019 年 9 月开始提供 terraform cloud，为小团队解决这两个问题。然而，目前 terraform cloud 更像是一个临时拼凑的 CI 工具，还有很长的路要走。
+
+References
+
+[1] Introduction to Infrastructure as Code with Terraform: https://learn.hashicorp.com/tutorials/terraform/infrastructure-as-code
+[2] 匹配的软件包: https://www.terraform.io/downloads.html
+[3] 官方安装terraform文档: https://learn.hashicorp.com/tutorials/terraform/install-cli
+[4] 这里: https://www.terraform.io/docs/cli/commands/output.html
